@@ -31,12 +31,14 @@ def myNetwork():
     h3 = net.addHost('h3', cls=Host, ip='10.0.0.2', mac='00:00:00:00:00:02', defaultRoute=None)
     h2 = net.addHost('h2', cls=Host, ip='10.0.0.2', mac='00:00:00:00:00:02', defaultRoute=None)
     h4 = net.addHost('h4', cls=Host, ip='10.0.0.2', mac='00:00:00:00:00:02', defaultRoute=None)
+    h5 = net.addHost('h5', cls=Host, ip='10.0.0.3', mac='00:00:00:00:00:03', defaultRoute=None)
     
     info( '*** Add links\n')
     net.addLink(s1, h1)
     net.addLink(s1, h2)
     net.addLink(s1, h3)
     net.addLink(s1, h4)
+    net.addLink(s1, h5)
 
     info( '*** Starting network\n')
     net.build()
@@ -46,12 +48,15 @@ def myNetwork():
 
     h3.cmd("arp -s 10.0.0.1 00:00:00:00:00:01")
     h4.cmd("arp -s 10.0.0.1 00:00:00:00:00:01")
-
+    h5.cmd("arp -s 10.0.0.1 00:00:00:00:00:01")
+    
     info( '*** Starting switches\n')
     net.get('s1').start([c0])
-
+    
     info( '*** Post configure switches and hosts\n')
-
+    s1.cmd("ovs-vsctl del-port s1-eth5")
+    s1.cmd("ovs-vsctl add-port s1 s1-eth5 -- --id=@p get port s1-eth5 -- --id=@m create mirror name=m0 select-all=true output-port=@p -- set bridge s1 mirrors=@m")
+    
     CLI(net)
     net.stop()
 
