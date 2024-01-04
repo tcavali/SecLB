@@ -5,6 +5,6 @@ Etapas do Projeto:
 - Conexão do app ao Banco de Dados MySQL [OK]
 - Redirecionamento de um fluxo de dados baseado no par IP:porta do fluxo consultado no BD [OK]
 - Desenvolvimento de um Sensor baseado em ML para identificação de ameaças []
-- Conexão do Sensor ao sistema []
-- Notificação do controlador sobre mudanças no status do fluxo []
+- Conexão do Sensor ao sistema [OK]
+- Notificação do controlador sobre mudanças no status do fluxo [OK]
 - Testes [+-]
