@@ -36,7 +36,9 @@ import org.onlab.packet.UDP;
 import org.onlab.packet.MacAddress;
 import org.onlab.packet.TCP;
 import org.onosproject.core.ApplicationId;
+import org.onosproject.core.Application;
 import org.onosproject.core.CoreService;
+//import org.onosproject.app.AbstractApplication;
 import org.onosproject.net.ConnectPoint;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.PortNumber;
@@ -49,6 +51,11 @@ import org.onosproject.net.packet.PacketContext;
 import org.onosproject.net.packet.PacketPriority;
 import org.onosproject.net.packet.PacketProcessor;
 import org.onosproject.net.packet.PacketService;
+import org.onosproject.net.flow.TrafficSelector;
+import org.onosproject.net.flow.TrafficTreatment;
+import org.onosproject.net.flowobjective.DefaultForwardingObjective;
+import org.onosproject.net.flowobjective.ForwardingObjective;
+//import org.onosproject.net.flowobjective.ForwardingObjectiveFlag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,11 +83,12 @@ import java.util.concurrent.TimeUnit;
  * Skeletal ONOS application component.
  */
 @Component(immediate = true,
-           service = {SomeInterface.class},
+           //service = {SomeInterface.class},
            property = {
                "someProperty=Some Default String Value",
            })
-public class AppComponent implements SomeInterface {
+public class AppComponent implements SomeInterface  {
+//public class AppComponent implements Application  {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
     ServerSocket servidor;
@@ -131,9 +139,12 @@ public class AppComponent implements SomeInterface {
         //
         log.info("Started");
 
+        //flowRuleService = coreService.getFlowRuleService();
+        //flowRuleService = context.getService(FlowRuleService.class);
+
         // Parte da inicialização do fwd
         appId = coreService.getAppId("org.foo.app"); //equal to the name shown in pom.xml file
-
+    
         processor = new SwitchPacketProcessor();
         packetService.addProcessor(processor, PacketProcessor.director(3));
 
@@ -214,7 +225,11 @@ public class AppComponent implements SomeInterface {
         log.info("Starting Server");
 
         boolean ent = true;
-        
+        //PacketContext pc;
+        PortNumber outPort = null;
+        MacAddress srcMac = null;
+        String trustScore = null;
+
         try{
             server = new ServerSocket(12345);
         }catch(IOException ie){
@@ -234,9 +249,65 @@ public class AppComponent implements SomeInterface {
             BufferedReader inFromClient = null;
             try{
                 inFromClient = new BufferedReader(new InputStreamReader(connected.getInputStream()));
-                log.info(("##### Received:"+ inFromClient.readLine() + " #####"));
+                trustScore = inFromClient.readLine();
+                log.info(("##### Received:"+ trustScore + " #####"));
             } catch(IOException e){
                 log.info("Erro de buffer");
+            }
+            // 20/12/2023: Tentativa de redirecionamento de tráfego sobrepondo a regra de fluxo instalada anteriormente com uma prioridade mais alta
+            if (trustScore != null){
+                outPort = outPort.portNumber("3");
+                srcMac = srcMac.valueOf("00:00:00:00:00:01");
+                DeviceId device = DeviceId.deviceId("of:0000000000000001");
+                
+                // Crie uma instância da regra de fluxo
+                /*FlowRule flowRule = new DefaultFlowRule();
+
+                // Defina os parâmetros da regra de fluxo
+                flowRule.setSrcPort(1);
+                flowRule.setDstPort(3);
+                flowRule.setPriority(65535);
+                flowRule.setAction(FlowRule.Action.FORWARD);
+
+                // Defina o switch no qual a regra será instalada
+                //flowRule.setSwitch(device);
+
+                // Aplique a regra de fluxo
+                flowRule.apply();*/
+
+                TrafficSelector selector = DefaultTrafficSelector.builder()
+                    // Defina seus critérios aqui (por exemplo, matchEthSrc, matchEthDst, matchInPort, etc.)
+                    .matchEthSrc(srcMac) // Exemplo: correspondência na porta de entrada 1
+                    .build();
+                
+                // Ação a ser tomada pela regra
+                TrafficTreatment treatment = DefaultTrafficTreatment.builder()
+                .setOutput(outPort) // Encaminhar para a porta de saída desejada
+                .build();
+                
+                
+                //pc.treatmentBuilder().setOutput(outPort);*/
+
+                FlowRule fr = DefaultFlowRule.builder()
+                        .withSelector(selector)
+                        .withTreatment(treatment)
+                        .forDevice(device).withPriority(65535)
+                        .makeTemporary(60)
+                        .fromApp(appId).build();
+
+                //flowRuleService.applyFlowRules(fr);
+                //pc.send();*/
+                /*ForwardingObjective forwardingObjective = DefaultForwardingObjective.builder()
+                    .withSelector(selector)
+                    .withTreatment(treatment)
+                    .withPriority(65535)
+                    .fromApp(appId) // appId é o ID da sua aplicação
+                    .withFlag(ForwardingObjectiveFlag.NOTIFY) // Especifique a flag conforme necessário
+                    .add();*/
+
+                // Instalação da regra no dispositivo específico
+                //flowRuleService.forward(device, forwardingObjective);
+                flowRuleService.applyFlowRules(fr);
             }
         }
         log.info("##### Saindo, Conexão e Portas Encerradas #####");
@@ -281,7 +352,13 @@ public class AppComponent implements SomeInterface {
          * @param pc the PacketContext object passed through from activate() method
          */
         public void actLikeHub(PacketContext pc) {
-            pc.treatmentBuilder().setOutput(PortNumber.FLOOD);
+            // Mexi nessa função para não dar FLOOD no caso do ARP, mas sim redirecionar só para a porta 2.
+            // Estou fazendo isso porque configurei todos os servidores com o mesmo MAC e IP, então obtendo a resposta
+            // eu consigo somente redirecionar a porta.
+            PortNumber outPort = null;
+            //outPort = outPort.portNumber("2");
+            //pc.treatmentBuilder().setOutput(PortNumber.FLOOD);
+            pc.treatmentBuilder().setOutput(outPort.portNumber("2"));
             pc.send();
         }
 
@@ -322,6 +399,7 @@ public class AppComponent implements SomeInterface {
              * to the designated output port.
              */
             if (outPort != null) {
+                log.info("Entrei aqui. a porta é: " + outPort.toString());
                 pc.treatmentBuilder().setOutput(outPort);
                 FlowRule fr = DefaultFlowRule.builder()
                         .withSelector(DefaultTrafficSelector.builder().matchEthDst(dstMac).build())
